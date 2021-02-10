@@ -53,7 +53,7 @@ export class Server<C extends GitpodClient, S extends GitpodServer> {
     @inject(MessageBusIntegration) protected readonly messagebus: MessageBusIntegration;
     @inject(WorkspaceDownloadService) protected readonly workspaceDownloadService: WorkspaceDownloadService;
     @inject(MonitoringEndpointsApp) protected readonly monitoringEndpointsApp: MonitoringEndpointsApp;
-    @inject(CodeSyncService) protected readonly codeSyncService: CodeSyncService;
+    @inject(CodeSyncService) private readonly codeSyncService: CodeSyncService;
 
     @inject(RabbitMQConsensusLeaderMessenger) protected readonly consensusMessenger: RabbitMQConsensusLeaderMessenger;
     @inject(ConsensusLeaderQorum) protected readonly qorum: ConsensusLeaderQorum;
