@@ -12,6 +12,7 @@ import { log } from '@gitpod/gitpod-protocol/lib/util/logging';
 import { ShowWorkspaceBuildLogs, WorkspaceBuildLog } from './show-workspace-build-logs';
 import { WorkspaceLogView } from './workspace-log-view';
 import { GitpodHostUrl } from '@gitpod/gitpod-protocol/lib/util/gitpod-host-url';
+import { contextUrlToUrl } from '@gitpod/gitpod-protocol/lib/util/context-url';
 import { CubeFrame } from './cube-frame';
 import { HeadlessLogEvent } from '@gitpod/gitpod-protocol/lib/headless-workspace-log';
 import { ProductivityTips } from './productivity-tips';
@@ -38,6 +39,7 @@ interface StartWorkspaceState {
     progress: number;
     startedInstanceId?: string;
     inTheiaAlready?: boolean;
+    ideFrontendFailureCause?: string;
     remainingUsageHours?: number;
 }
 
@@ -84,6 +86,19 @@ export class StartWorkspace extends React.Component<StartWorkspaceProps, StartWo
 
     private readonly toDispose = new DisposableCollection();
     componentWillMount() {
+        if (window.self !== window.top) {
+            const setStateEventListener = (event: MessageEvent) => {
+                if (event.data.type === 'setState' && 'state' in event.data && typeof event.data['state'] === 'object') {
+                    this.setState(event.data.state);
+                }
+            }
+            window.addEventListener('message', setStateEventListener, false);
+            this.toDispose.push({
+                dispose: () => window.removeEventListener('message', setStateEventListener)
+            });
+            this.setState({ inTheiaAlready: true });
+        }
+
         this.queryInitialState();
         this.startWorkspace(this.props.workspaceId);
     }
@@ -93,9 +108,6 @@ export class StartWorkspace extends React.Component<StartWorkspaceProps, StartWo
     }
 
     protected async queryInitialState() {
-        if (window.self !== window.top) {
-            this.setState({ inTheiaAlready: true });
-        }
         WithBranding.getBranding(this.props.service, true)
             .then(branding => this.branding = branding)
             .catch(e => console.log("cannot update branding", e));
@@ -273,7 +285,7 @@ export class StartWorkspace extends React.Component<StartWorkspaceProps, StartWo
         }
         if (workspaceInstance.status.phase === 'stopped') {
             if (this.isHeadless && this.workspace) {
-                const contextUrl = this.workspace.contextURL.replace('prebuild/', '');
+                const contextUrl = this.workspace.contextURL.replace('prebuild/', '')!;
                 this.redirectTo(new GitpodHostUrl(window.location.toString()).withContext(contextUrl).toString());
             }
         }
@@ -443,8 +455,8 @@ export class StartWorkspace extends React.Component<StartWorkspaceProps, StartWo
 
                 const urls = new GitpodHostUrl(window.location.toString());
                 const startUrl = urls.asStart(this.props.workspaceId).toString();
-                const ctxURL = new URL(this.state.workspace?.contextURL || urls.asDashboard().toString())
-                const host = "Back to " + ctxURL.host;
+                const ctxUrl = this.state.workspace?.contextURL ? contextUrlToUrl(this.state.workspace!.contextURL)! : new URL(urls.asDashboard().toString());
+                const host = "Back to " + ctxUrl.host;
                 message = <React.Fragment>
                     <div className='message'>
                         <div style={{ display: '' }}>
@@ -517,7 +529,12 @@ export class StartWorkspace extends React.Component<StartWorkspaceProps, StartWo
                     }>Upgrade Subscription</Button>
                 </div>;
             } else if (this.state.inTheiaAlready) {
-                message = <div className='message'></div>;
+                if (this.state.ideFrontendFailureCause) {
+                    cubeErrorMessage = this.state.ideFrontendFailureCause;
+                    message = <div className='message'>Something went wrong, try to reload the page.</div>;
+                } else {
+                    message = <div className='message'></div>;
+                }
             } else {
                 this.ensureWorkspaceAuth(this.state.workspaceInstance.id)
                     .then(() => { window.location.href = this.state.workspaceInstance!.ideUrl; });
