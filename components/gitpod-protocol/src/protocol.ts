@@ -146,7 +146,7 @@ export interface UserFeatureSettings {
  * The values of this type MUST MATCH enum values in WorkspaceFeatureFlag from ws-manager/client/core_pb.d.ts
  * If they don't we'll break things during workspace startup.
  */
-export const WorkspaceFeatureFlags = { "full_workspace_backup": undefined, "fixed_resources": undefined, "user_namespace": undefined };
+export const WorkspaceFeatureFlags = { "full_workspace_backup": undefined, "fixed_resources": undefined };
 export type NamedWorkspaceFeatureFlag = keyof (typeof WorkspaceFeatureFlags);
 
 export interface UserEnvVarValue {
@@ -502,6 +502,24 @@ export interface UninstallPluginParams {
     pluginId: string;
 }
 
+export interface GuessGitTokenScopesParams {
+    host: string
+    repoUrl: string
+	gitCommand: string
+    currentToken: GitToken
+}
+
+export interface GitToken {
+    token: string
+    user: string
+    scopes: string[]
+}
+
+export interface GuessedGitTokenScopes {
+    message?: string
+    scopes?: string[]
+}
+
 export type ResolvedPluginKind = 'user' | 'workspace' | 'builtin';
 
 export interface ResolvedPlugins {
@@ -527,10 +545,10 @@ export interface WorkspaceConfig {
     gitConfig?: { [config: string]: string };
     github?: GithubAppConfig;
     vscode?: VSCodeConfig;
-    
+
     /**
      * Where the config object originates from.
-     * 
+     *
      * repo - from the repository
      * definitly-gp - from github.com/gitpod-io/definitely-gp
      * derived - computed based on analyzing the repository
@@ -957,6 +975,12 @@ export interface WorkspaceInfo {
     latestInstance?: WorkspaceInstance
 }
 
+export namespace WorkspaceInfo {
+    export function lastActiveISODate(info: WorkspaceInfo): string {
+        return info.latestInstance?.creationTime || info.workspace.creationTime;
+    }
+}
+
 export type RunningWorkspaceInfo = WorkspaceInfo & { latestInstance: WorkspaceInstance };
 
 export interface WorkspaceCreationResult {
@@ -1056,8 +1080,17 @@ export interface OAuth2Config {
 export namespace AuthProviderEntry {
     export type Type = "GitHub" | "GitLab" | string;
     export type Status = "pending" | "verified";
-    export type NewEntry = Pick<AuthProviderEntry, "ownerId" | "host" | "type">;
+    export type NewEntry = Pick<AuthProviderEntry, "ownerId" | "host" | "type"> & { clientId?: string, clientSecret?: string };
     export type UpdateEntry = Pick<AuthProviderEntry, "id" | "ownerId"> & Pick<OAuth2Config, "clientId" | "clientSecret">;
+    export function redact(entry: AuthProviderEntry): AuthProviderEntry {
+        return {
+            ...entry,
+            oauth: {
+                ...entry.oauth,
+                clientSecret: "redacted"
+            }
+        }
+    }
 }
 
 export interface Branding {

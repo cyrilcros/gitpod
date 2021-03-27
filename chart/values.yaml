@@ -127,7 +127,7 @@ branding:
         url: https://www.gitpod.io/terms/
 workspaceScheduler: workspace-scheduler
 serverProxyApiKey: "fF7+aCPvF9Pa0AEjmoZ+yWVh6PqBjM5VEA0wyQs3FH4="
-previewFeatureFlags: ["user_namespace"]
+previewFeatureFlags: []
 
 components:
 
@@ -241,6 +241,19 @@ components:
       enabled: false
       socket: /var/lib/gitpod/registry-facade
     serviceType: "ClusterIP"
+
+  # enabled cronjob to restart the proxy deployment
+  restarter:
+    enabled: false
+    schedule: '0 0 * * 0'
+    image: bitnami/kubectl:latest
+    targets:
+    - name: proxy
+      kind: deployment
+    - name: registry-facade
+      kind: daemonset
+    - name: ws-proxy
+      kind: deployment
 
   server:
     name: "server"
@@ -358,11 +371,6 @@ components:
     # This can be generated with: openssl dhparam 4096 2> /dev/null | base64 -w 0
     # http://nginx.org/en/docs/http/ngx_http_ssl_module.html#ssl_dhparam
     sslDHParam:
-    # enabled cronjob to restart the proxy deployment
-    restarter:
-      enabled: false
-      schedule: '0 0 * * 0'
-      image: bitnami/kubectl:latest
 
   wsManager:
     name: "ws-manager"
@@ -406,6 +414,11 @@ components:
       # - /run/containerd/io.containerd.runtime.v1.linux/moby
       # - /run/containerd/io.containerd.runtime.v2.task/k8s.io
     userNamespaces:
+      # Valid values for fsShift are:
+      #    fuse: uses fuse-overlayfs
+      #    shiftfs: uses shiftfs. Depending on the underlying OS/distribution you
+      #             might want to enable the shiftfsModuleLoader.
+      fsShift: fuse
       shiftfsModuleLoader:
         enabled: false
         imageName: "shiftfs-module-loader"

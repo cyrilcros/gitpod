@@ -28,6 +28,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/gitpod-io/gitpod/common-go/log"
+	"github.com/gitpod-io/gitpod/common-go/pprof"
 	csapi "github.com/gitpod-io/gitpod/content-service/api"
 	"github.com/gitpod-io/gitpod/content-service/pkg/executor"
 	"github.com/gitpod-io/gitpod/content-service/pkg/initializer"
@@ -37,6 +38,8 @@ import (
 	"github.com/gitpod-io/gitpod/supervisor/pkg/ports"
 	"github.com/gitpod-io/gitpod/supervisor/pkg/terminal"
 	daemon "github.com/gitpod-io/gitpod/ws-daemon/api"
+
+	grpc_logrus "github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus"
 )
 
 var (
@@ -146,7 +149,8 @@ func Run(options ...RunOption) {
 		termMuxSrv  = terminal.NewMuxTerminalService(termMux)
 		taskManager = newTasksManager(cfg, termMuxSrv, cstate, &loggingHeadlessTaskProgressReporter{})
 	)
-	tokenService.provider[KindGit] = []tokenProvider{NewGitTokenProvider(gitpodService)}
+	notificationService := NewNotificationService()
+	tokenService.provider[KindGit] = []tokenProvider{NewGitTokenProvider(gitpodService, cfg.WorkspaceConfig, notificationService)}
 
 	termMuxSrv.DefaultWorkdir = cfg.RepoRoot
 	termMuxSrv.Env = buildIDEEnv(cfg)
@@ -160,7 +164,7 @@ func Run(options ...RunOption) {
 		},
 		termMuxSrv,
 		RegistrableTokenService{tokenService},
-		NewNotificationService(),
+		notificationService,
 		&InfoService{cfg: cfg},
 		&ControlService{portsManager: portMgmt},
 	}
@@ -241,6 +245,7 @@ func createGitpodService(cfg *Config, tknsrv api.TokenServiceServer) *gitpod.API
 			"function:getToken",
 			"function:openPort",
 			"function:getOpenPorts",
+			"function:guessGitTokenScopes",
 		},
 	})
 	if err != nil {
@@ -574,6 +579,13 @@ func startAPIEndpoint(ctx context.Context, cfg *Config, wg *sync.WaitGroup, serv
 		log.WithError(err).Fatal("cannot start health endpoint")
 	}
 
+	if cfg.DebugEnable {
+		opts = append(opts,
+			grpc.UnaryInterceptor(grpc_logrus.UnaryServerInterceptor(log.Log)),
+			grpc.StreamInterceptor(grpc_logrus.StreamServerInterceptor(log.Log)),
+		)
+	}
+
 	m := cmux.New(l)
 	restMux := grpcruntime.NewServeMux()
 	grpcMux := m.MatchWithWriters(cmux.HTTP2MatchHeaderFieldSendSettings("content-type", "application/grpc"))
@@ -596,6 +608,9 @@ func startAPIEndpoint(ctx context.Context, cfg *Config, wg *sync.WaitGroup, serv
 	routes := http.NewServeMux()
 	routes.Handle("/_supervisor/v1/", http.StripPrefix("/_supervisor", restMux))
 	routes.Handle("/_supervisor/frontend", http.FileServer(http.Dir(cfg.FrontendLocation)))
+	if cfg.DebugEnable {
+		routes.Handle("/_supervisor"+pprof.Path, http.StripPrefix("/_supervisor", pprof.Handler()))
+	}
 	go http.Serve(httpMux, routes)
 
 	go m.Serve()

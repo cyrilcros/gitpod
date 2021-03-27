@@ -1,6 +1,6 @@
 /**
- * Copyright (c) 2020 Gitpod GmbH. All rights reserved.
- * Licensed under the GNU Affero General Public License (AGPL).
+* Copyright (c) 2020 Gitpod GmbH. All rights reserved.
+* Licensed under the GNU Affero General Public License (AGPL).
  * See License-AGPL.txt in the project root for license information.
  */
 
@@ -14,7 +14,7 @@ import { UserDB } from '@gitpod/gitpod-db/lib/user-db';
 import { UserMessageViewsDB } from '@gitpod/gitpod-db/lib/user-message-views-db';
 import { UserStorageResourcesDB } from '@gitpod/gitpod-db/lib/user-storage-resources-db';
 import { WorkspaceDB } from '@gitpod/gitpod-db/lib/workspace-db';
-import { AuthProviderEntry, AuthProviderInfo, Branding, CommitContext, Configuration, CreateWorkspaceMode, DisposableCollection, GetWorkspaceTimeoutResult, GitpodClient, GitpodServer, GitpodToken, GitpodTokenType, InstallPluginsParams, PermissionName, PortVisibility, PrebuiltWorkspace, PrebuiltWorkspaceContext, PreparePluginUploadParams, ResolvedPlugins, ResolvePluginsParams, SetWorkspaceTimeoutResult, StartPrebuildContext, StartWorkspaceResult, Terms, Token, UninstallPluginParams, User, UserEnvVar, UserEnvVarValue, UserInfo, UserMessage, WhitelistedRepository, Workspace, WorkspaceContext, WorkspaceCreationResult, WorkspaceImageBuild, WorkspaceInfo, WorkspaceInstance, WorkspaceInstancePort, WorkspaceInstanceUser, WorkspaceTimeoutDuration } from '@gitpod/gitpod-protocol';
+import { AuthProviderEntry, AuthProviderInfo, Branding, CommitContext, Configuration, CreateWorkspaceMode, DisposableCollection, GetWorkspaceTimeoutResult, GitpodClient, GitpodServer, GitpodToken, GitpodTokenType, InstallPluginsParams, PermissionName, PortVisibility, PrebuiltWorkspace, PrebuiltWorkspaceContext, PreparePluginUploadParams, ResolvedPlugins, ResolvePluginsParams, SetWorkspaceTimeoutResult, StartPrebuildContext, StartWorkspaceResult, Terms, Token, UninstallPluginParams, User, UserEnvVar, UserEnvVarValue, UserInfo, UserMessage, WhitelistedRepository, Workspace, WorkspaceContext, WorkspaceCreationResult, WorkspaceImageBuild, WorkspaceInfo, WorkspaceInstance, WorkspaceInstancePort, WorkspaceInstanceUser, WorkspaceTimeoutDuration, GuessGitTokenScopesParams, GuessedGitTokenScopes } from '@gitpod/gitpod-protocol';
 import { AccountStatement } from "@gitpod/gitpod-protocol/lib/accounting-protocol";
 import { AdminBlockUserRequest, AdminGetListRequest, AdminGetListResult, AdminGetWorkspacesRequest, AdminModifyPermanentWorkspaceFeatureFlagRequest, AdminModifyRoleOrPermissionRequest, WorkspaceAndInstance } from '@gitpod/gitpod-protocol/lib/admin-protocol';
 import { GetLicenseInfoResult, LicenseFeature, LicenseValidationResult } from '@gitpod/gitpod-protocol/lib/license-protocol';
@@ -47,6 +47,7 @@ import { UserDeletionService } from '../user/user-deletion-service';
 import { UserService } from '../user/user-service';
 import { IClientDataPrometheusAdapter } from './client-data-prometheus-adapter';
 import { ContextParser } from './context-parser-service';
+import { GitTokenScopeGuesser } from "./git-token-scope-guesser";
 import { MessageBusIntegration } from './messagebus-integration';
 import { WorkspaceDeletionService } from './workspace-deletion-service';
 import { WorkspaceFactory } from './workspace-factory';
@@ -87,6 +88,8 @@ export class GitpodServerImpl<Client extends GitpodClient, Server extends Gitpod
     @inject(TermsProvider) protected readonly termsProvider: TermsProvider;
 
     @inject(BlobServiceClient) protected readonly blobServiceClient: BlobServiceClient;
+
+    @inject(GitTokenScopeGuesser) protected readonly gitTokenScopeGuesser: GitTokenScopeGuesser;
 
     /** Id the uniquely identifies this server instance */
     public readonly uuid: string = uuidv4();
@@ -176,6 +179,7 @@ export class GitpodServerImpl<Client extends GitpodClient, Server extends Gitpod
         // we might want to share that in the future, but for the time being there's no need
         delete (res.configuration);
         // internal operation detail
+        // @ts-ignore
         delete (res.workspaceImage);
 
         return res;
@@ -1429,6 +1433,11 @@ export class GitpodServerImpl<Client extends GitpodClient, Server extends Gitpod
         return this.pluginService.uninstallUserPlugin(userId, params);
     }
 
+    async guessGitTokenScopes(params: GuessGitTokenScopesParams): Promise<GuessedGitTokenScopes> {
+        const authProviders = await this.getAuthProviders()
+        return this.gitTokenScopeGuesser.guessGitTokenScopes(authProviders.find(p => p.host == params.host), params);
+    }
+
     async adminGetUsers(req: AdminGetListRequest<User>): Promise<AdminGetListResult<User>> {
         throw new ResponseError(ErrorCodes.EE_FEATURE, `Admin support is implemented in Gitpod's Enterprise Edition`);
     }
@@ -1497,13 +1506,7 @@ export class GitpodServerImpl<Client extends GitpodClient, Server extends Gitpod
     }
 
     async getOwnAuthProviders(): Promise<AuthProviderEntry[]> {
-        const redacted = (entry: AuthProviderEntry) => ({
-            ...entry,
-            oauth: {
-                ...entry.oauth,
-                clientSecret: "redacted"
-            }
-        });
+        const redacted = (entry: AuthProviderEntry) => AuthProviderEntry.redact(entry);
         let userId: string;
         try {
             userId = this.checkAndBlockUser("getOwnAuthProviders").id;
@@ -1530,7 +1533,7 @@ export class GitpodServerImpl<Client extends GitpodClient, Server extends Gitpod
     //   for example [foo.bar/gitlab]
     protected validHostNameRegexp = /^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)+([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])(\/([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9]))?$/;
 
-    async updateOwnAuthProvider({ entry }: GitpodServer.UpdateOwnAuthProviderParams): Promise<void> {
+    async updateOwnAuthProvider({ entry }: GitpodServer.UpdateOwnAuthProviderParams): Promise<AuthProviderEntry> {
         let userId: string;
         try {
             userId = this.checkAndBlockUser("updateOwnAuthProvider").id;
@@ -1558,10 +1561,11 @@ export class GitpodServerImpl<Client extends GitpodClient, Server extends Gitpod
                 if (hostContext) {
                     const builtInExists = hostContext.authProvider.config.ownerId === undefined;
                     log.debug(`Attempt to override existing auth provider.`, { entry, safeProvider, builtInExists });
-                    throw new Error("Provider for host has already been registered.");
+                    throw new Error("Provider for this host already exists.");
                 }
             }
-            await this.authProviderService.updateAuthProvider(safeProvider);
+            const result = await this.authProviderService.updateAuthProvider(safeProvider);
+            return AuthProviderEntry.redact(result)
         } catch (error) {
             const message = error && error.message ? error.message : "Failed to update the provider.";
             throw new ResponseError(ErrorCodes.CONFLICT, message);
@@ -1576,6 +1580,8 @@ export class GitpodServerImpl<Client extends GitpodClient, Server extends Gitpod
         } : <AuthProviderEntry.NewEntry>{
             host: entry.host,
             type: entry.type,
+            clientId: entry.clientId,
+            clientSecret: entry.clientSecret,
             ownerId: entry.ownerId,
         }
         return safeEntry;
