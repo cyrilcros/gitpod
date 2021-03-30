@@ -218,7 +218,7 @@ function GitProviders() {
                     </div>
                 </div>
                 <div className="flex justify-end mt-6">
-                    <button className={"ml-2 border-red-900 bg-red-500  hover:bg-red-700"} onClick={() => disconnect(diconnectModal.provider)}>Disconnect Provider</button>
+                    <button className={"ml-2 danger secondary"} onClick={() => disconnect(diconnectModal.provider)}>Disconnect Provider</button>
                 </div>
             </Modal>
         )}
@@ -254,11 +254,11 @@ function GitProviders() {
             </Modal>
         )}
 
-        <h3>Git Providers</h3>
-        <h2>Manage permissions for git providers.</h2>
+    <h3>Git Providers</h3>
+    <h2>Manage permissions for git providers.</h2>
         <div className="flex flex-col pt-6 space-y-2">
             {authProviders && authProviders.map(ap => (
-                <div key={"ap-" + ap.authProviderId} className="flex-grow flex flex-row hover:bg-gray-100 rounded-xl h-16 w-full">
+                <div key={"ap-" + ap.authProviderId} className="flex-grow flex flex-row hover:bg-gray-100 rounded-xl h-16 w-full transition ease-in-out group">
                     <div className="px-4 self-center w-1/12">
                         <div className={"rounded-full w-3 h-3 text-sm align-middle " + (isConnected(ap.authProviderId) ? "bg-green-500" : "bg-gray-400")}>
                             &nbsp;
@@ -276,7 +276,7 @@ function GitProviders() {
                         <span className="my-auto truncate text-gray-500 overflow-ellipsis">{getPermissions(ap.authProviderId)?.join(", ") || "–"}</span>
                         <span className="text-sm my-auto text-gray-400">Permissions</span>
                     </div>
-                    <div className="my-auto flex w-1/12 pl-8">
+                    <div className="my-auto flex w-1/12 pl-8 mr-4 opacity-0 group-hover:opacity-100">
                         <div className="self-center hover:bg-gray-200 rounded-md cursor-pointer w-8">
                             <ContextMenu menuEntries={gitProviderMenu(ap)}>
                                 <img className="w-8 h-8 p-1" src={ThreeDots} alt="Actions" />
@@ -350,26 +350,36 @@ function GitIntegrations() {
                     </div>
                 </div>
                 <div className="flex justify-end mt-6">
-                    <button className={"ml-2 border-red-900 bg-red-500 hover:bg-red-700"} onClick={() => deleteProvider(modal.provider)}>Remove Integration</button>
+                    <button className={"ml-2 danger secondary"} onClick={() => deleteProvider(modal.provider)}>Remove Integration</button>
                 </div>
             </Modal>
         )}
 
-        <h3 className="flex-grow self-center">Git Integrations</h3>
-        <h2>Manage git integrations for GitLab or GitHub self-hosted instances.</h2>
+        <div className="flex items-start sm:justify-between mb-2">
+            <div>
+                <h3>Git Integrations</h3>
+                <h2 className="text-gray-500">Manage git integrations for GitLab or GitHub self-hosted instances.</h2>
+            </div>
+            {providers.length !== 0
+            ?
+            <div className="mt-3 flex mt-0">
+                <button onClick={() => setModal({ mode: "new" })} className="ml-2">New Integration</button>
+            </div>
+            : null}
+        </div>
 
         {providers && providers.length === 0 && (
             <div className="w-full flex h-80 mt-2 rounded-xl bg-gray-100">
                 <div className="m-auto text-center">
                     <h3 className="self-center text-gray-500 mb-4">No Git Integrations</h3>
                     <div className="text-gray-500 mb-6">In addition to the default Git Providers you can authorize<br /> with a self hosted instace of a provider.</div>
-                    <button className="self-center" onClick={() => setModal({ mode: "new" })}>New Git Integration</button>
+                    <button className="self-center" onClick={() => setModal({ mode: "new" })}>New Integration</button>
                 </div>
             </div>
         )}
         <div className="flex flex-col pt-6 space-y-2">
             {providers && providers.map(ap => (
-                <div key={"ap-" + ap.id} className="flex-grow flex flex-row hover:bg-gray-100 rounded-xl h-16 w-full">
+                <div key={"ap-" + ap.id} className="flex-grow flex flex-row hover:bg-gray-100 rounded-xl h-16 w-full transition ease-in-out group">
 
                     <div className="px-4 self-center w-1/12">
                         <div className={"rounded-full w-3 h-3 text-sm align-middle " + (ap.status === "verified" ? "bg-green-500" : "bg-gray-400")}>
@@ -382,7 +392,7 @@ function GitIntegrations() {
                     <div className="p-0 my-auto flex flex-col w-7/12">
                         <span className="my-auto truncate text-gray-500 overflow-ellipsis">{ap.host}</span>
                     </div>
-                    <div className="my-auto flex w-1/12 pl-8">
+                    <div className="my-auto flex w-1/12 pl-8 opacity-0 group-hover:opacity-100">
                         <div className="self-center hover:bg-gray-200 rounded-md cursor-pointer w-8">
                             <ContextMenu menuEntries={gitProviderMenu(ap)}>
                                 <img className="w-8 h-8 p-1" src={ThreeDots} alt="Actions" />
@@ -392,11 +402,6 @@ function GitIntegrations() {
                 </div>
             ))}
         </div>
-        {providers && providers.length > 0 && (
-            <div className="flex justify-start mt-6">
-                <button className="h-full" onClick={() => setModal({ mode: "new" })}>New Git Integration</button>
-            </div>
-        )}
     </div>);
 }
 
@@ -567,7 +572,7 @@ function GitIntegrationModal(props: ({
             {props.mode === "new" && (
                 <div className="flex flex-col space-y-2">
                     <label htmlFor="type" className="font-medium">Provider Type</label>
-                    <select name="type" value={type} disabled={props.mode !== "new"} className="rounded-md w-full border-2 border-gray-400"
+                    <select name="type" value={type} disabled={props.mode !== "new"} className="w-full"
                         onChange={(e) => setType(e.target.value)}>
                         <option value="GitHub">GitHub</option>
                         <option value="GitLab">GitLab</option>
@@ -576,27 +581,27 @@ function GitIntegrationModal(props: ({
             )}
             <div className="flex flex-col space-y-2">
                 <label htmlFor="hostName" className="font-medium">Provider Host Name</label>
-                <input name="hostName" disabled={props.mode === "edit"} type="text" value={host} className="rounded-md w-full border-2 border-gray-400"
+                <input name="hostName" disabled={props.mode === "edit"} type="text" value={host} className="w-full"
                     onChange={(e) => updateHostValue(e.target.value)} />
             </div>
             <div className="flex flex-col space-y-2">
                 <label htmlFor="redirectURL" className="font-medium">Redirect URL</label>
                 <div className="w-full relative">
-                    <input name="redirectURL" disabled={true} readOnly={true} type="text" value={redirectURL} className="rounded-md w-full truncate pr-8" />
+                    <input name="redirectURL" disabled={true} readOnly={true} type="text" value={redirectURL} className="w-full truncate" />
                     <div className="cursor-pointer" onClick={() => copyRedirectUrl()}>
-                        <img src={copy} title="Copy the Redirect URL to clippboard." className="absolute top-1/3 right-3" />
+                        <img src={copy} title="Copy the Redirect URL to clippboard" className="absolute top-1/3 right-3" />
                     </div>
                 </div>
                 <span className="text-gray-500 text-sm">{getRedirectUrlDescription(type, host)}</span>
             </div>
             <div className="flex flex-col space-y-2">
                 <label htmlFor="clientId" className="font-medium">Client ID</label>
-                <input name="clientId" type="text" value={clientId} className="rounded-md w-full border-2 border-gray-400"
+                <input name="clientId" type="text" value={clientId} className="w-full"
                     onChange={(e) => updateClientId(e.target.value)} />
             </div>
             <div className="flex flex-col space-y-2">
                 <label htmlFor="clientSecret" className="font-medium">Client Secret</label>
-                <input name="clientSecret" type="password" value={clientSecret} className="rounded-md w-full border-2 border-gray-400"
+                <input name="clientSecret" type="password" value={clientSecret} className="w-full"
                     onChange={(e) => updateClientSecret(e.target.value)} />
             </div>
             {errorMessage && (
@@ -613,7 +618,7 @@ function GitIntegrationModal(props: ({
             )}
         </div>
         <div className="flex justify-end mt-6">
-            <button className="disabled:opacity-50" onClick={() => validate() && activate()} disabled={!!validationError || busy}>Activate Integration</button>
+            <button onClick={() => validate() && activate()} disabled={!!validationError || busy}>Activate Integration</button>
         </div>
     </Modal>);
 }

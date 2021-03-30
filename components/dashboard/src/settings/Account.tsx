@@ -35,26 +35,26 @@ export default function Account() {
                     <li className="ml-5">Your subscription will be cancelled. If you obtained a Gitpod subscription through the GitHub marketplace, you need to cancel your plan there.</li>
                 </ol>
                 <p className="pt-4 pb-2 text-gray-600 text-base font-bold">Type your email to confirm</p>
-              <input className="border-2 border-gray-400 w-full" type="text" onChange={e => setTypedEmail(e.target.value)}></input>
+                <input className="w-full" type="text" onChange={e => setTypedEmail(e.target.value)}></input>
             </div>
             <div className="flex justify-end mt-6">
-                <button className="text-gray-900 border-white bg-white hover:border-gray-200" onClick={close}>Cancel</button>
-                <button className={"ml-2 border-red-900 bg-red-500 disabled:opacity-50" + (typedEmail !== primaryEmail ? '' : ' hover:bg-red-700')} onClick={deleteAccount} disabled={typedEmail !== primaryEmail}>Delete Account</button>
+                <button className="secondary" onClick={close}>Cancel</button>
+                <button className="ml-2 danger" onClick={deleteAccount} disabled={typedEmail !== primaryEmail}>Delete Account</button>
             </div>
         </Modal>
 
         <SettingsPage title='Account' subtitle='Manage account and git configuration.'>
             <h3>Profile</h3>
-            <p className="text-base text-gray-500 pb-4">The following information will be used to set up git configuration. You can override git author name and email per project by using the default environment variables <span className="text-gitpod-kumquat-dark bg-gitpod-kumquat-light px-1.5 py-1 rounded-md text-sm font-mono">GIT_AUTHOR_NAME</span> and <span className="text-gitpod-kumquat-dark bg-gitpod-kumquat-light px-1.5 py-1 rounded-md text-sm font-mono">GIT_COMMITTER_EMAIL</span>.</p>
+            <p className="text-base text-gray-500 pb-4">The following information will be used to set up git configuration. You can override git author name and email per project by using the default environment variables <span className="text-gray--300 bg-gray-100 px-1.5 py-1 rounded-md text-sm font-mono font-medium">GIT_AUTHOR_NAME</span> and <span className="text-gray--300 bg-gray-100 px-1.5 py-1 rounded-md text-sm font-mono font-medium">GIT_COMMITTER_EMAIL</span>.</p>
             <div className="flex flex-col lg:flex-row">
                 <div>
                     <div className="mt-4">
                         <h4>Name</h4>
-                        <input type="text" disabled={true} value={user!.name} onChange={(v) => { console.log(v) }} />
+                        <input type="text" disabled={true} value={user?.fullName || user?.name} />
                     </div>
                     <div className="mt-4">
                         <h4>Email</h4>
-                        <input type="text" disabled={true} value={User.getPrimaryEmail(user!)} onChange={(v) => { console.log(v) }} />
+                        <input type="text" disabled={true} value={User.getPrimaryEmail(user!)} />
                     </div>
                 </div>
                 <div className="lg:pl-14">
@@ -67,7 +67,7 @@ export default function Account() {
             </div>
             <h3 className="mt-12">Delete Account</h3>
             <p className="text-base text-gray-500 pb-4">This action will remove all the data associated with your account in Gitpod.</p>
-            <button className="border-red-600 text-red-600 bg-white hover:border-red-800 hover:text-red-800" onClick={() => setModal(true)}>Delete Account</button>
+            <button className="danger secondary" onClick={() => setModal(true)}>Delete Account</button>
         </SettingsPage>
     </div>;
 }
