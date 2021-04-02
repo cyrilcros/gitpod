@@ -1,4 +1,4 @@
-image: eu.gcr.io/gitpod-core-dev/dev/dev-environment:clu-dev-env.1
+image: eu.gcr.io/gitpod-core-dev/dev/dev-environment:pluggable-workspace-cluster.9
 workspaceLocation: gitpod/gitpod-ws.theia-workspace
 checkoutLocation: gitpod
 ports:
@@ -32,7 +32,7 @@ tasks:
   - before: scripts/branch-namespace.sh
     init: yarn --network-timeout 100000 && yarn build
   - name: Go
-    init: leeway exec --filter-type go -v -- go get -v ./...
+    init: leeway exec --filter-type go -v -- go mod download
     openMode: split-right
 vscode:
   extensions:

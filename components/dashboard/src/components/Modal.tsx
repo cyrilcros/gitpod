@@ -7,6 +7,8 @@
 import { useEffect } from "react";
 
 export default function Modal(props: {
+    title?: string;
+    buttons?: React.ReactChild[] | React.ReactChild,
     children: React.ReactChild[] | React.ReactChild,
     visible: boolean,
     closeable?: boolean,
@@ -16,6 +18,9 @@ export default function Modal(props: {
 }) {
 
     const handler = (evt: KeyboardEvent) => {
+        if (evt.defaultPrevented) {
+            return;
+        }
         if (evt.key === 'Escape') {
             props.onClose();
         }
@@ -45,7 +50,7 @@ export default function Modal(props: {
     return (
         <div className="fixed top-0 left-0 bg-black bg-opacity-70 z-50 w-screen h-screen" onClick={props.onClose}>
             <div className="w-screen h-screen align-middle" style={{display: 'table-cell'}}>
-                <div className={"relative bg-white border rounded-xl p-6 max-w-lg mx-auto text-gray-600" + props.className} onClick={e => e.stopPropagation()}>
+                <div className={"relative bg-white border rounded-xl p-6 max-w-lg mx-auto text-left text-gray-600 " + (props.className || '')} onClick={e => e.stopPropagation()}>
                     {props.closeable !== false && (
                         <div className="absolute right-7 top-6 cursor-pointer hover:bg-gray-200 rounded-md p-2" onClick={props.onClose}>
                             <svg version="1.1" width="14px" height="14px"
@@ -55,7 +60,14 @@ export default function Modal(props: {
                             </svg>
                         </div>
                     )}
-                    {props.children}
+                    {props.title ? <><h3 className="pb-2">{props.title}</h3> 
+                    <div className="border-t border-b border-gray-200 mt-2 -mx-6 px-6 py-4">
+                        {props.children}
+                    </div>
+                    <div className="flex justify-end mt-6 space-x-2">
+                        {props.buttons}
+                    </div></>:
+                    props.children }
                 </div>
             </div>
         </div>

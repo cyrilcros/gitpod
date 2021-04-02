@@ -5,7 +5,6 @@
 package supervisor
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -14,7 +13,6 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -23,6 +21,7 @@ import (
 	"time"
 
 	grpcruntime "github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
+	"github.com/prometheus/procfs"
 	"github.com/soheilhy/cmux"
 	"golang.org/x/sys/unix"
 	"google.golang.org/grpc"
@@ -165,7 +164,7 @@ func Run(options ...RunOption) {
 		termMuxSrv,
 		RegistrableTokenService{tokenService},
 		notificationService,
-		&InfoService{cfg: cfg},
+		&InfoService{cfg: cfg, ContentState: cstate},
 		&ControlService{portsManager: portMgmt},
 	}
 	apiServices = append(apiServices, additionalServices...)
@@ -697,49 +696,75 @@ func startContentInit(ctx context.Context, cfg *Config, wg *sync.WaitGroup, cst 
 }
 
 func terminateChildProcesses() {
-	ppid := strconv.Itoa(os.Getpid())
-	dirs, err := os.ReadDir("/proc")
+	parent := os.Getpid()
+
+	children, err := processesWithParent(parent)
 	if err != nil {
-		log.WithError(err).Warn("cannot terminate child processes")
+		log.WithError(err).WithField("pid", parent).Warn("cannot find children processes")
 		return
 	}
-	for _, d := range dirs {
-		pid, err := strconv.Atoi(d.Name())
-		if err != nil {
-			// not a PID
-			continue
-		}
-		proc, err := os.FindProcess(pid)
-		if err != nil {
-			continue
+
+	for pid, uid := range children {
+		privileged := false
+		if initializer.GitpodUID != uid {
+			privileged = true
 		}
 
-		var isChild bool
-		f, err := os.Open(filepath.Join("/proc", d.Name(), "status"))
-		if err != nil {
-			continue
-		}
-		scan := bufio.NewScanner(f)
-		for scan.Scan() {
-			l := strings.TrimSpace(scan.Text())
-			if !strings.HasPrefix(l, "PPid:") {
-				continue
-			}
-
-			isChild = strings.HasSuffix(l, ppid)
-			break
-		}
-		if !isChild {
-			continue
-		}
-
-		err = proc.Signal(unix.SIGTERM)
-		if err != nil {
-			log.WithError(err).WithField("pid", pid).Warn("cannot terminate child processe")
-			continue
-		}
-		log.WithField("pid", pid).Debug("SIGTERM'ed child process")
+		terminateProcess(pid, privileged)
 	}
+}
+
+func terminateProcess(pid int, privileged bool) {
+	var err error
+	if privileged {
+		cmd := exec.Command("sudo", "kill", "-SIGTERM", fmt.Sprintf("%v", pid))
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		err = cmd.Run()
+	} else {
+		err = syscall.Kill(pid, unix.SIGTERM)
+	}
+
+	if err != nil {
+		log.WithError(err).WithField("pid", pid).Warn("cannot terminate child process")
+		return
+	}
+
+	log.WithField("pid", pid).Debug("SIGTERM'ed child process")
+}
+
+func processesWithParent(ppid int) (map[int]int, error) {
+	procs, err := procfs.AllProcs()
+	if err != nil {
+		return nil, err
+	}
+
+	children := make(map[int]int)
+	for _, proc := range procs {
+
+		stat, err := proc.Stat()
+		if err != nil {
+			continue
+		}
+
+		if stat.PPID != ppid {
+			continue
+		}
+
+		status, err := proc.NewStatus()
+		if err != nil {
+			continue
+		}
+
+		uid, err := strconv.Atoi(status.UIDs[0])
+		if err != nil {
+			continue
+		}
+
+		children[proc.PID] = uid
+	}
+
+	return children, nil
 }
 
 func callDaemonTeardown() {

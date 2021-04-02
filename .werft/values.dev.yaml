@@ -34,11 +34,6 @@ components:
     replicas: 1
     makeNewUsersAdmin: true # for development
     theiaPluginsBucketName: gitpod-core-dev-plugins
-    wsman:
-    - name: "local"
-      address: "ws-manager:8080"
-    - name: "dev"
-      address: "ws-manager-dev:8080"
 
   registryFacade:
     daemonSet: true
@@ -142,7 +137,7 @@ components:
 
   wsScheduler:
     scaler:
-      enabled: false
+      enabled: true
       controller:
         kind: "constant"
         constant:
@@ -153,6 +148,12 @@ components:
     name: "ws-proxy"
     disabled: false
     replicas: 1
+    wsManagerProxy:
+      enabled: true
+    ports:
+      wsManagerProxy:
+        expose: true
+        containerPort: 8081
 
 # configure GCP registry
 docker-registry:
@@ -166,6 +167,10 @@ minio:
     create: false
 
 rabbitmq:
+  # ensure shovels are configured on boot
+  shovels:
+    - name: messagebus-0
+      srcUri: "amqp://$USERNAME:$PASSWORD@messagebus-0"
   auth:
     username: override-me
     password: override-me

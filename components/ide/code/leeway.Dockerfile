@@ -30,7 +30,7 @@ RUN sudo apt-get update \
     && sudo apt-get clean -y \
     && rm -rf /var/lib/apt/lists/*
 
-ENV GP_CODE_COMMIT 614b3c729e6fa822ed9aef75886d7497b2edcdfb
+ENV GP_CODE_COMMIT 0ce76acf042b084a6eb0f3c76ece0f3db2562d1c
 RUN mkdir gp-code \
     && cd gp-code \
     && git init \
@@ -65,3 +65,4 @@ ENV GITPOD_ENV_SET_VISUAL "$GITPOD_ENV_SET_EDITOR"
 ENV GITPOD_ENV_SET_GP_OPEN_EDITOR "$GITPOD_ENV_SET_EDITOR"
 ENV GITPOD_ENV_SET_GIT_EDITOR "$GITPOD_ENV_SET_EDITOR --wait"
 ENV GITPOD_ENV_SET_GP_PREVIEW_BROWSER "code --command gitpod.api.preview"
+ENV GITPOD_ENV_SET_GP_EXTERNAL_BROWSER "code --open-external"

@@ -5,13 +5,24 @@
 {{- $ := .root -}}
 {{- $comp := .comp -}}
 manager:
-  - name: "local"
-    address: "ws-manager:8080"
-  - name: "{{ template "gitpod.installation.shortname" . }}"
-    address: "ws-manager:8080"
-{{ if $comp.wsman -}}
-{{ $comp.wsman | toYaml | indent 2 }}
-{{- end -}}
+- name: "{{ template "gitpod.installation.shortname" . }}"
+  url: "ws-manager:8080"
+  state: "available"
+  maxScore: 100
+  score: 50
+  govern: true
+  tls:
+    ca: /ws-manager-client-tls-certs/ca.crt
+    crt: /ws-manager-client-tls-certs/tls.crt
+    key: /ws-manager-client-tls-certs/tls.key
+{{- range $_, $wsman := $comp.wsman }}
+{{ "- " -}}
+{{ $wsman | toYaml | indent 2 | trim }}
+  tls:
+    ca: /ws-manager-client-tls-certs/ca.crt
+    crt: /ws-manager-client-tls-certs/tls.crt
+    key: /ws-manager-client-tls-certs/tls.key
+{{- end }}
 {{- end -}}
 
 {{ define "rate-limiter-config" -}}
@@ -84,6 +95,9 @@ spec:
           privileged: false
           runAsUser: 31001
         volumeMounts:
+        - mountPath: /ws-manager-client-tls-certs
+          name: ws-manager-client-tls-certs
+          readOnly: true
 {{- if $comp.github.app }}
         - name: github-app-cert-secret
           mountPath: "/github-app-cert"
@@ -170,8 +184,6 @@ spec:
         - name: DEV_BRANCH
           value: "{{ .Values.devBranch }}"
     {{- end }}
-        - name: WSMAN_CFG_DEFAULT
-          value: "local"
         - name: WSMAN_CFG_MANAGERS
           value: {{ index (include "ws-manager-list" $this | fromYaml) "manager" | default dict | toJson | b64enc | quote }}
         - name: GITPOD_BASEIMG_REGISTRY_WHITELIST
@@ -200,6 +212,9 @@ spec:
 {{ toYaml $comp.serverContainer.env | indent 8 }}
 {{- end }}
       volumes:
+      - name: ws-manager-client-tls-certs
+        secret:
+          secretName: {{ .Values.components.wsManager.tls.client.secretName }}
 {{- if $comp.github.app }}
       - name: github-app-cert-secret
         secret:

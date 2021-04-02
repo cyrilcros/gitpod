@@ -1,7 +1,8 @@
 # Copyright (c) 2020 Gitpod GmbH. All rights reserved.
 # Licensed under the MIT License. See License-MIT.txt in the project root for license information.
 
-version: # version of Gitpod will be set by the CI job on publishing to https://charts.gitpod.io/
+# version of Gitpod will be set by the CI job on publishing to https://charts.gitpod.io/
+version:
 
 hostname: localhost
 certificatesSecret:
@@ -355,6 +356,11 @@ components:
     resources:
       cpu: 100m
       memory: 32Mi
+    tls:
+      server:
+        secretName: ws-manager-tls
+      client:
+        secretName: ws-manager-client-tls
     ports:
       rpc:
         expose: true
@@ -462,10 +468,13 @@ components:
       memory: 64Mi
     replicas: 1
     useHTTPS: false
-    ingress:
-      portRange:
-        start: 10000
-        end: 11000
+    hostHeader: "x-wsproxy-host"
+    wsManagerProxy:
+      enabled: false
+      listenAddress: ":8081"
+      ratelimit:
+        # Limits the # of requests (per second)
+        maxRPS: 10
     ports:
       httpProxy:
         expose: true
@@ -512,6 +521,9 @@ mysql:
 
 rabbitmq:
   fullnameOverride: "messagebus"
+  # non-standard configuration
+  # defined by gitpod.io
+  shovels: []
   persistence:
     enabled: false
   replicaCount: 1
@@ -541,6 +553,7 @@ rabbitmq:
           "vhosts": [{
             "name": "/"
           }],
+          "parameters": {{ tpl (.Values.shovelsTemplate) . | fromYamlArray | toJson }},
           "permissions": [{
             "user": {{ .Values.auth.username | quote }},
             "vhost": "/",
@@ -553,25 +566,25 @@ rabbitmq:
             "vhost": "/",
             "type": "topic",
             "durable": true,
-            "auto_delete": false,
+            "auto_delete": false
           }, {
             "name": "gitpod.ws.local",
             "vhost": "/",
             "type": "topic",
             "durable": true,
-            "auto_delete": false,
+            "auto_delete": false
           }, {
             "name": "wsman",
             "vhost": "/",
             "type": "topic",
             "durable": false,
-            "auto_delete": false,
+            "auto_delete": false
           }, {
             "name": "consensus-leader",
             "vhost": "/",
             "type": "fanout",
             "durable": false,
-            "auto_delete": false,
+            "auto_delete": false
           }],
           "bindings": [{
             "source": "gitpod.ws.local",
@@ -614,3 +627,22 @@ rabbitmq:
     create: true
     minAvailable: 0
     maxUnavailable: 1
+  shovelsTemplate: |
+    {{ $auth := .Values.auth }}
+    {{- range $index, $shovel := .Values.shovels }}
+    - name: {{ $shovel.name | default (randAlphaNum 20) | quote }}
+      vhost: "/"
+      component: "shovel"
+      value:
+        ack-mode: "on-publish"
+        src-delete-after: "never"
+        src-exchange: {{ $shovel.srcExchange | default "gitpod.ws.local" | quote }}
+        src-exchange-key: {{ $shovel.srcExchangeKey | default "#" | quote  }}
+        src-protocol: "amqp091"
+        src-uri: {{ $shovel.srcUri | replace "$USERNAME" $auth.username | replace "$PASSWORD" $auth.password | quote }}
+        dest-add-forward-headers: {{ $shovel.destAddForwardHeaders | default true }}
+        dest-exchange: {{ $shovel.destExchange | default "gitpod.ws" | quote }}
+        dest-protocol: "amqp091"
+        dest-uri: {{ $shovel.destUri | default "amqp://" | quote }}
+        reconnect-delay: {{ $shovel.reconnectDelay | default 5 }}
+    {{- end }}

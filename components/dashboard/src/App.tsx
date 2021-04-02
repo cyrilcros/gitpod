@@ -7,8 +7,7 @@
 import React, { Suspense, useContext, useEffect, useState } from 'react';
 import Menu from './components/Menu';
 import { BrowserRouter } from "react-router-dom";
-import { Route, Switch } from "react-router";
-import { Workspaces } from './workspaces/Workspaces';
+import { Redirect, Route, Switch } from "react-router";
 
 import { Login } from './Login';
 import { UserContext } from './user-context';
@@ -16,14 +15,18 @@ import { getGitpodService } from './service/service';
 import { shouldSeeWhatsNew, WhatsNew } from './WhatsNew';
 import settingsMenu from './settings/settings-menu';
 
+const Workspaces = React.lazy(() => import(/* webpackPrefetch: true */ './workspaces/Workspaces'));
 const Account = React.lazy(() => import(/* webpackPrefetch: true */ './settings/Account'));
 const Notifications = React.lazy(() => import(/* webpackPrefetch: true */ './settings/Notifications'));
 const Plans = React.lazy(() => import(/* webpackPrefetch: true */ './settings/Plans'));
+const Teams = React.lazy(() => import(/* webpackPrefetch: true */ './settings/Teams'));
 const EnvironmentVariables = React.lazy(() => import(/* webpackPrefetch: true */ './settings/EnvironmentVariables'));
 const Integrations = React.lazy(() => import(/* webpackPrefetch: true */ './settings/Integrations'));
 const Preferences = React.lazy(() => import(/* webpackPrefetch: true */ './settings/Preferences'));
 const StartWorkspace = React.lazy(() => import(/* webpackPrefetch: true */ './start/StartWorkspace'));
 const CreateWorkspace = React.lazy(() => import(/* webpackPrefetch: true */ './start/CreateWorkspace'));
+const InstallGitHubApp = React.lazy(() => import(/* webpackPrefetch: true */ './prebuilds/InstallGitHubApp'));
+const FromReferrer = React.lazy(() => import(/* webpackPrefetch: true */ './FromReferrer'));
 
 function Loading() {
     return <>
@@ -70,14 +73,29 @@ function App() {
         <div className="container">
             {renderMenu()}
             <Switch>
-                <Route path={["/", "/workspaces"]} exact render={
-                    () => <Workspaces />} />
-                <Route path={["/account", "/settings"]} exact component={Account} />
-                <Route path={["/integrations", "/access-control"]} exact component={Integrations} />
+                <Route path="/workspaces" exact component={Workspaces} />
+                <Route path="/account" exact component={Account} />
+                <Route path="/integrations" exact component={Integrations} />
                 <Route path="/notifications" exact component={Notifications} />
                 <Route path="/plans" exact component={Plans} />
+                <Route path="/teams" exact component={Teams} />
                 <Route path="/variables" exact component={EnvironmentVariables} />
                 <Route path="/preferences" exact component={Preferences} />
+                <Route path="/install-github-app" exact component={InstallGitHubApp} />
+                <Route path="/from-referrer" exact component={FromReferrer} />
+                
+                <Route path={["/", "/login"]} exact>
+                    <Redirect to="/workspaces"/>
+                </Route>
+                <Route path={["/settings"]} exact>
+                    <Redirect to="/account"/>
+                </Route>
+                <Route path={["/access-control"]} exact>
+                    <Redirect to="/integrations"/>
+                </Route>
+                <Route path={["/subscription", "/usage"]} exact>
+                    <Redirect to="/plans"/>
+                </Route>
             </Switch>
         </div>
     </Route>;
